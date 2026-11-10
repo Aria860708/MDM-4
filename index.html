@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="theme-color" content="#000000"><title>國軍 MDM V9.1｜V6 第十一階段底部文字原圖字級校準</title>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="theme-color" content="#000000"><title>國軍 MDM V9.1｜V6.3 雙擊編輯版</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}body{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overscroll-behavior:none}
 @supports(padding:env(safe-area-inset-top)){body{background:#000}}
@@ -17,7 +17,7 @@
 .colon-lock{left:37.9%;top:88.05%;width:3.2%;height:2.55%;font-size:4.15cqw;font-weight:700}
 .colon-setting{left:26.9%;top:91.35%;width:3.2%;height:2.55%;font-size:4.05cqw;font-weight:700}
 .warning{left:25%;top:96.15%;width:50%;height:2.2%;font-size:4.0cqw;font-weight:800;color:#f02f35;letter-spacing:.12em}
-.editable{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer}
+.editable{touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-user-drag:none;cursor:pointer}
 #editDialog{position:fixed;inset:0;z-index:99;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.58);font-family:-apple-system,BlinkMacSystemFont,"PingFang TC",sans-serif}
 #editDialog.open{display:flex}
 .dialog-card{width:min(92vw,420px);background:#fff;color:#111;border-radius:18px;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.3)}
@@ -122,7 +122,7 @@
       input.value = state[key] || defaults[key];
       hint.textContent = key === "main"
         ? "請輸入剛好四個中文字。保存後會自動記憶。"
-        : "長按編輯；保存後會自動記憶。";
+        : "修改後會自動保存，下次開啟仍會保留。";
     }
     dialog.classList.add("open");
     setTimeout(() => { input.focus(); if (!lockInputMode) input.select(); }, 80);
@@ -155,45 +155,48 @@
   dialog.addEventListener("click", e => { if (e.target === dialog) closeDialog(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeDialog(); });
 
-  // iPhone Safari: long-press editor with touch + pointer fallback.
+  // iPhone Safari: edit text by double-tapping; lock time remains single-tap.
   document.querySelectorAll('.editable').forEach(el => {
     const key = el.dataset.edit;
-    let timer = null;
-    let openedByHold = false;
-    let startX = 0, startY = 0;
-    const cancel = () => { if (timer !== null) clearTimeout(timer); timer = null; };
-    const begin = (x, y) => {
-      cancel(); openedByHold = false; startX = x; startY = y;
-      timer = setTimeout(() => {
-        timer = null; openedByHold = true;
-        openDialog(key);
-      }, 550);
-    };
-    const moved = (x, y) => {
-      if (timer !== null && (Math.abs(x-startX) > 14 || Math.abs(y-startY) > 14)) cancel();
-    };
-    el.addEventListener('touchstart', e => {
-      if (!e.touches || e.touches.length !== 1) return;
-      begin(e.touches[0].clientX, e.touches[0].clientY);
-    }, {passive:true});
-    el.addEventListener('touchmove', e => {
-      if (e.touches && e.touches.length) moved(e.touches[0].clientX, e.touches[0].clientY);
-    }, {passive:true});
-    el.addEventListener('touchend', cancel, {passive:true});
-    el.addEventListener('touchcancel', cancel, {passive:true});
-    el.addEventListener('contextmenu', e => e.preventDefault());
-    el.addEventListener('selectstart', e => e.preventDefault());
-    // Desktop fallback.
-    el.addEventListener('pointerdown', e => {
-      if (e.pointerType === 'touch') return;
-      if (e.button !== 0) return;
-      begin(e.clientX, e.clientY);
-    });
-    el.addEventListener('pointermove', e => { if (e.pointerType !== 'touch') moved(e.clientX,e.clientY); });
-    ['pointerup','pointercancel','pointerleave'].forEach(n => el.addEventListener(n, cancel));
     if (key === 'lock') {
       el.addEventListener('click', () => openDialog('lock'));
+      return;
     }
+
+    let lastTapAt = 0;
+    let lastX = 0, lastY = 0;
+    const DOUBLE_TAP_MS = 380;
+    const MAX_DISTANCE = 28;
+
+    el.addEventListener('touchend', e => {
+      if (!e.changedTouches || e.changedTouches.length !== 1) return;
+      const touch = e.changedTouches[0];
+      const now = Date.now();
+      const dx = Math.abs(touch.clientX - lastX);
+      const dy = Math.abs(touch.clientY - lastY);
+      const isDoubleTap = (now - lastTapAt) <= DOUBLE_TAP_MS &&
+                          dx <= MAX_DISTANCE && dy <= MAX_DISTANCE;
+
+      if (isDoubleTap) {
+        lastTapAt = 0;
+        e.preventDefault();
+        openDialog(key);
+      } else {
+        lastTapAt = now;
+        lastX = touch.clientX;
+        lastY = touch.clientY;
+      }
+    }, {passive:false});
+
+    // Desktop testing: native double-click.
+    el.addEventListener('dblclick', e => {
+      e.preventDefault();
+      openDialog(key);
+    });
+
+    // Prevent iOS callout / image-save style context menu on editable text.
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    el.addEventListener('selectstart', e => e.preventDefault());
   });
 
   renderText();
