@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="theme-color" content="#000000"><title>國軍 MDM V9.1｜V6 第十一階段底部文字原圖字級校準</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#66c84d}body{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overscroll-behavior:none}
-@supports(padding:env(safe-area-inset-top)){body{background:linear-gradient(to bottom,#000 0, #000 env(safe-area-inset-top),#66c84d env(safe-area-inset-top),#66c84d 100%)}}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}body{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overscroll-behavior:none}
+@supports(padding:env(safe-area-inset-top)){body{background:#000}}
 /* 原始畫布座標固定為 1320 × 2721；整張畫布只做等比例縮放 */
 .stage{position:relative;width:min(100vw,48.5116dvh);aspect-ratio:1320/2721;flex:none;overflow:hidden;background:#66c84d;container-type:inline-size}
 .base{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:fill}
@@ -48,7 +48,7 @@
 <script>
 (() => {
   "use strict";
-  const STORE = "mdm_v6_user_settings_v1";
+  const STORE = "mdm_v6_2_user_settings_v1";
   const defaults = {
     header: "國軍 MDM V9.1",
     status: "已上鎖，可進入此管制營區",
@@ -155,46 +155,44 @@
   dialog.addEventListener("click", e => { if (e.target === dialog) closeDialog(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeDialog(); });
 
-  // iPhone Safari: use native touch events for reliable long-press detection.
-  document.querySelectorAll(".editable").forEach(el => {
-    let timer = null, longPressed = false, startX = 0, startY = 0;
+  // iPhone Safari: long-press editor with touch + pointer fallback.
+  document.querySelectorAll('.editable').forEach(el => {
     const key = el.dataset.edit;
-    const cancelTimer = () => { if (timer) clearTimeout(timer); timer = null; };
-    const startTouch = e => {
-      if (!e.touches || e.touches.length !== 1) return;
-      longPressed = false;
-      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-      cancelTimer();
+    let timer = null;
+    let openedByHold = false;
+    let startX = 0, startY = 0;
+    const cancel = () => { if (timer !== null) clearTimeout(timer); timer = null; };
+    const begin = (x, y) => {
+      cancel(); openedByHold = false; startX = x; startY = y;
       timer = setTimeout(() => {
-        timer = null;
-        longPressed = true;
+        timer = null; openedByHold = true;
         openDialog(key);
-      }, 650);
+      }, 550);
     };
-    const moveTouch = e => {
-      if (!timer || !e.touches || !e.touches.length) return;
-      const dx = Math.abs(e.touches[0].clientX - startX);
-      const dy = Math.abs(e.touches[0].clientY - startY);
-      if (dx > 18 || dy > 18) cancelTimer();
+    const moved = (x, y) => {
+      if (timer !== null && (Math.abs(x-startX) > 14 || Math.abs(y-startY) > 14)) cancel();
     };
-    el.addEventListener("touchstart", startTouch, {passive:true});
-    el.addEventListener("touchmove", moveTouch, {passive:true});
-    el.addEventListener("touchend", cancelTimer, {passive:true});
-    el.addEventListener("touchcancel", cancelTimer, {passive:true});
-    el.addEventListener("contextmenu", e => e.preventDefault());
-    // Mouse / trackpad support for desktop testing.
-    el.addEventListener("mousedown", e => {
+    el.addEventListener('touchstart', e => {
+      if (!e.touches || e.touches.length !== 1) return;
+      begin(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive:true});
+    el.addEventListener('touchmove', e => {
+      if (e.touches && e.touches.length) moved(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive:true});
+    el.addEventListener('touchend', cancel, {passive:true});
+    el.addEventListener('touchcancel', cancel, {passive:true});
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    el.addEventListener('selectstart', e => e.preventDefault());
+    // Desktop fallback.
+    el.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'touch') return;
       if (e.button !== 0) return;
-      longPressed = false; cancelTimer();
-      timer = setTimeout(() => { timer = null; longPressed = true; openDialog(key); }, 650);
+      begin(e.clientX, e.clientY);
     });
-    ["mouseup","mouseleave"].forEach(name => el.addEventListener(name, cancelTimer));
-    if (key === "lock") {
-      // Lock time remains tap-to-edit.
-      el.addEventListener("click", () => {
-        if (!longPressed) openDialog("lock");
-        longPressed = false;
-      });
+    el.addEventListener('pointermove', e => { if (e.pointerType !== 'touch') moved(e.clientX,e.clientY); });
+    ['pointerup','pointercancel','pointerleave'].forEach(n => el.addEventListener(n, cancel));
+    if (key === 'lock') {
+      el.addEventListener('click', () => openDialog('lock'));
     }
   });
 
