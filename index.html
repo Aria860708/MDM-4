@@ -1,6 +1,7 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#66c84d"><title>國軍 MDM V9.1｜V6 第十一階段底部文字原圖字級校準</title>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="theme-color" content="#000000"><title>國軍 MDM V9.1｜V6 第十一階段底部文字原圖字級校準</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#66c84d}body{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overscroll-behavior:none}
+@supports(padding:env(safe-area-inset-top)){body{background:linear-gradient(to bottom,#000 0, #000 env(safe-area-inset-top),#66c84d env(safe-area-inset-top),#66c84d 100%)}}
 /* 原始畫布座標固定為 1320 × 2721；整張畫布只做等比例縮放 */
 .stage{position:relative;width:min(100vw,48.5116dvh);aspect-ratio:1320/2721;flex:none;overflow:hidden;background:#66c84d;container-type:inline-size}
 .base{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:fill}
@@ -16,7 +17,7 @@
 .colon-lock{left:37.9%;top:88.05%;width:3.2%;height:2.55%;font-size:4.15cqw;font-weight:700}
 .colon-setting{left:26.9%;top:91.35%;width:3.2%;height:2.55%;font-size:4.05cqw;font-weight:700}
 .warning{left:25%;top:96.15%;width:50%;height:2.2%;font-size:4.0cqw;font-weight:800;color:#f02f35;letter-spacing:.12em}
-.editable{touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer}
+.editable{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer}
 #editDialog{position:fixed;inset:0;z-index:99;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.58);font-family:-apple-system,BlinkMacSystemFont,"PingFang TC",sans-serif}
 #editDialog.open{display:flex}
 .dialog-card{width:min(92vw,420px);background:#fff;color:#111;border-radius:18px;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.3)}
@@ -154,33 +155,42 @@
   dialog.addEventListener("click", e => { if (e.target === dialog) closeDialog(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeDialog(); });
 
-  // Editable text fields open only after a deliberate long press.
+  // iPhone Safari: use native touch events for reliable long-press detection.
   document.querySelectorAll(".editable").forEach(el => {
     let timer = null, longPressed = false, startX = 0, startY = 0;
     const key = el.dataset.edit;
-    const start = e => {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
+    const cancelTimer = () => { if (timer) clearTimeout(timer); timer = null; };
+    const startTouch = e => {
+      if (!e.touches || e.touches.length !== 1) return;
       longPressed = false;
-      startX = e.clientX; startY = e.clientY;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      cancelTimer();
       timer = setTimeout(() => {
+        timer = null;
         longPressed = true;
         openDialog(key);
-      }, 550);
+      }, 650);
     };
-    const move = e => {
-      if (timer && (Math.abs(e.clientX-startX) > 12 || Math.abs(e.clientY-startY) > 12)) {
-        clearTimeout(timer); timer = null;
-      }
+    const moveTouch = e => {
+      if (!timer || !e.touches || !e.touches.length) return;
+      const dx = Math.abs(e.touches[0].clientX - startX);
+      const dy = Math.abs(e.touches[0].clientY - startY);
+      if (dx > 18 || dy > 18) cancelTimer();
     };
-    const end = () => { if (timer) clearTimeout(timer); timer = null; };
-    el.addEventListener("pointerdown", start);
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", end);
-    el.addEventListener("pointercancel", end);
-    el.addEventListener("pointerleave", end);
+    el.addEventListener("touchstart", startTouch, {passive:true});
+    el.addEventListener("touchmove", moveTouch, {passive:true});
+    el.addEventListener("touchend", cancelTimer, {passive:true});
+    el.addEventListener("touchcancel", cancelTimer, {passive:true});
     el.addEventListener("contextmenu", e => e.preventDefault());
+    // Mouse / trackpad support for desktop testing.
+    el.addEventListener("mousedown", e => {
+      if (e.button !== 0) return;
+      longPressed = false; cancelTimer();
+      timer = setTimeout(() => { timer = null; longPressed = true; openDialog(key); }, 650);
+    });
+    ["mouseup","mouseleave"].forEach(name => el.addEventListener(name, cancelTimer));
     if (key === "lock") {
-      // Lock time is tap-to-edit, not long-press.
+      // Lock time remains tap-to-edit.
       el.addEventListener("click", () => {
         if (!longPressed) openDialog("lock");
         longPressed = false;
